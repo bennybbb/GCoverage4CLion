@@ -17,41 +17,36 @@ class CoverageThreadHelper {
     fun generateGCDAFor(gcda: File, project: Project, hashSet: HashSet<List<String>>, toolchain1: CPPToolchains.Toolchain, path: String?): Boolean {
         try {
             var lines = mutableListOf<String>()
-            val nullFile = if (System.getProperty("os.name").startsWith("Windows")) {
-                "NUL"
-            } else {
-                "/dev/zero"
-            }
+
+
             if (path == null) {
                 val notification = GCovNotification.GROUP_DISPLAY_ID_INFO
                         .createNotification("No GCov specified for toolchain $toolchain1", NotificationType.ERROR)
                 Notifications.Bus.notify(notification, project)
                 return false
             }
-            val builder = if (toolchain1.toolSetKind == CPPToolSet.Kind.WSL) {
-                ProcessBuilder(toolchain1.toolSetPath, "run", path, "-i", "-m", "-b", gcda.name.toString())
-            } else {
-                ProcessBuilder(path, "-i", "-m", "-b", gcda.name.toString())
-            }.run {
-                directory(gcda.parentFile)
-                redirectOutput(File(nullFile))
-                redirectErrorStream(false)
-            }
-            val p = builder.start()
-            val reader = BufferedReader(InputStreamReader(p.errorStream))
+
+            val process = createRunningProcess(toolchain1, path, gcda)
+            val errorStream = process.errorStream
+            val reader = BufferedReader(InputStreamReader(errorStream))
+
             do {
                 val line = reader.readLine() ?: break
                 lines.add(line)
             } while (true)
-            val retCode = p.waitFor()
+
+            val retCode = process.waitFor()
+
             if (retCode != 0) {
                 CoverageThreadHelper.log.warn("\"gcov\" returned with error code $retCode")
             }
+
             if (lines.isNotEmpty()) {
                 lines = lines.map {
                     val pathConverted = it.replace('\\', '/')
                     pathConverted.substring(1 + pathConverted.indexOf(':', pathConverted.indexOf('/')))
                 }.toMutableList()
+
                 if (hashSet.add(lines)) {
                     val notification = GCovNotification.GROUP_DISPLAY_ID_INFO
                             .createNotification("gcov returned following warning:\n" + lines.joinToString("\n"), NotificationType.WARNING)
@@ -68,6 +63,28 @@ class CoverageThreadHelper {
             Notifications.Bus.notify(notification, project)
         }
         return true
+    }
+
+    fun createRunningProcess(toolchain1: CPPToolchains.Toolchain, path: String?, gcda: File): Process {
+        val nullFile: String
+        if (System.getProperty("os.name").startsWith("Windows")) {
+            nullFile = "NUL"
+        } else {
+            nullFile = "/dev/zero"
+        }
+
+        val builder = if (toolchain1.toolSetKind == CPPToolSet.Kind.WSL) {
+            ProcessBuilder(toolchain1.toolSetPath, "run", path, "-i", "-m", "-b", gcda.name.toString())
+        } else {
+            ProcessBuilder(path, "-i", "-m", "-b", gcda.name.toString())
+        }.run {
+            directory(gcda.parentFile)
+            redirectOutput(File(nullFile))
+            redirectErrorStream(false)
+        }
+
+        val process = builder.start()
+        return process
     }
 
     companion object {

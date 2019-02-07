@@ -9,6 +9,7 @@ import com.jetbrains.cidr.cpp.toolchains.CPPToolchains
 import com.jetbrains.cidr.toolchains.OSType
 import org.junit.Test
 import java.io.File
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 
@@ -26,4 +27,12 @@ class CoverageThreadHelperTest {
 
         assertFalse(CoverageThreadHelper().generateGCDAFor(File(""), project, HashSet<List<String>>(), CPPToolchains.Toolchain(OSType.MAC), null))
     }
+
+    @Test
+    fun foo() {
+
+        System.setProperty("os.name", "Windows")
+        assertEquals("Windows", System.getProperty("os.name"))
+    }
+
 }
